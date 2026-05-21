@@ -37,7 +37,7 @@ _EMOTION_COLOURS: dict[str, str] = {
     "thinking":  "#B8A8D8",
 }
 
-_DEFAULT_SIZE = (300, 400)   # px — resize to match your sprite sheet
+_DEFAULT_SIZE = (220, 300)   # px — smaller default for compact avatar
 _CORNER_OFFSET = (20, 20)    # px from bottom-right corner
 
 
@@ -92,12 +92,18 @@ class AvatarWindow:
         root.attributes("-topmost", True)    # always on top
         root.attributes("-alpha", 0.92)      # slight transparency
 
-        # Transparent background (macOS + Windows)
+        # Transparent background (Windows uses -transparentcolor; macOS uses -transparent)
         try:
             root.attributes("-transparentcolor", "black")
             root.configure(bg="black")
         except tk.TclError:
-            root.configure(bg="black")
+            # Try the macOS-style transparent attribute, fall back to a solid bg.
+            try:
+                root.attributes("-transparent", True)
+                # Allow widgets to inherit a truly transparent background where supported
+                root.configure(bg="systemTransparent")
+            except tk.TclError:
+                root.configure(bg="black")
 
         w, h = _DEFAULT_SIZE
         sw = root.winfo_screenwidth()
@@ -107,7 +113,8 @@ class AvatarWindow:
         y = sh - h - oy
         root.geometry(f"{w}x{h}+{x}+{y}")
 
-        self._label = tk.Label(root, bg="black", cursor="fleur")
+        # Use a standard arrow cursor to avoid platform-specific cursor artifacts
+        self._label = tk.Label(root, bg=root.cget("bg"), cursor="arrow")
         self._label.pack(fill="both", expand=True)
 
         # Allow dragging
@@ -128,7 +135,7 @@ class AvatarWindow:
                 from PIL import Image, ImageTk  # type: ignore
                 img = Image.open(sprite_path).resize(_DEFAULT_SIZE, Image.LANCZOS)
                 self._photo = ImageTk.PhotoImage(img)
-                self._label.configure(image=self._photo, bg="black")
+                self._label.configure(image=self._photo, bg=root.cget("bg"))
                 return
             except ImportError:
                 pass  # Pillow not installed — fall through to colour block
@@ -140,7 +147,7 @@ class AvatarWindow:
             bg=colour,
             text=f"Isla\n{emotion}",
             fg="white",
-            font=("Helvetica", 18, "bold"),
+            font=("Helvetica", 14, "bold"),
             compound="center",
         )
         self._photo = None

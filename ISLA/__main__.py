@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sys
 
 from pathlib import Path
 
@@ -26,7 +27,21 @@ def main() -> None:
                 from .avatar.avatar_window import AvatarWindow
 
                 avatar_window = AvatarWindow()
-                avatar_window.run_in_thread()
+                # On macOS, Tk must be created and run on the main thread. Start
+                # the wake-word daemon in a background thread and run the avatar
+                # mainloop here instead to avoid AppKit threading errors.
+                if sys.platform == "darwin":
+                    import threading as _threading
+
+                    _threading.Thread(
+                        target=app.run_wake_word_daemon,
+                        kwargs={"avatar_window": avatar_window},
+                        daemon=True,
+                    ).start()
+                    avatar_window.run()
+                    return
+                else:
+                    avatar_window.run_in_thread()
             except Exception:
                 avatar_window = None
 
