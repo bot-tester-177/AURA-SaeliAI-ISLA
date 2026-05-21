@@ -1,0 +1,20 @@
+{
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv",
+    "python.terminal.activateEnvironment": true,
+    "python.analysis.autoSearchPaths": true,
+    "python.analysis.indexing": true,
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/*.pyc": true,
+        ".isla_memory": true,
+        ".isla_memory.jsonl": true,
+        ".isla_voice_cache": true
+    },
+    "search.exclude": {
+        "**/__pycache__": true,
+        "**/*.pyc": true,
+        ".isla_memory": true,
+        ".isla_memory.jsonl": true,
+        ".isla_voice_cache": true
+    }
+}
