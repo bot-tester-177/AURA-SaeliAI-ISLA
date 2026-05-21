@@ -19,6 +19,8 @@ except Exception:  # pragma: no cover - optional dependency
 
 from ..memory.memory_store import MemoryItem, MemoryStore
 from ..tools.tool_router import ToolCall, ToolRouter
+from ..avatar.emotion_tagger import tag_emotion
+from ..avatar.vtube_bridge import VTubeBridge
 
 
 @dataclass(slots=True)
@@ -49,6 +51,7 @@ class SaeliAICore:
         self.system_prompt_path = system_prompt_path or Path(__file__).resolve().parents[1] / "prompts" / "system_prompt.md"
         self.conversation_history: list[dict[str, str]] = []
         self.max_history_messages = 24
+        self.vtube_bridge = VTubeBridge()
         self._register_default_tools()
 
     def _load_manifest(self, manifest_path: Path) -> IslaManifest:
@@ -349,6 +352,8 @@ class SaeliAICore:
     def _finalize_turn(self, user_text: str, response: Any) -> Any:
         self._remember_utterance(user_text)
         self._record_turn(user_text, response if isinstance(response, str) else str(response))
+        emotion = tag_emotion(response if isinstance(response, str) else str(response))
+        self.vtube_bridge.send_emotion(emotion)
         return response
 
     def get_identity(self) -> IslaManifest:
