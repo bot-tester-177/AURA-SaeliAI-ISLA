@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import webbrowser
 from datetime import datetime
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import quote_plus
 from typing import Any
 
 try:
@@ -41,6 +45,7 @@ class SaeliAICore:
         self.manifest = self._load_manifest(manifest_path)
         self.memory_store = memory_store or MemoryStore()
         self.tool_router = tool_router or ToolRouter()
+        self.ollama_model = os.environ.get("ISLA_OLLAMA_MODEL", "mistral").strip() or "mistral"
         self.system_prompt_path = system_prompt_path or Path(__file__).resolve().parents[1] / "prompts" / "system_prompt.md"
         self.conversation_history: list[dict[str, str]] = []
         self.max_history_messages = 24
@@ -131,6 +136,150 @@ class SaeliAICore:
         self.tool_router.register("identity", self.get_identity)
         self.tool_router.register("memory.get", self.memory_store.get)
         self.tool_router.register("memory.search", self.memory_store.search)
+        self.tool_router.register("time.now", self.get_current_time)
+        self.tool_router.register("web.search", self.search_web)
+        self.tool_router.register("app.open", self.open_app)
+
+    def _ollama_tool_specs(self) -> list[dict[str, object]]:
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": "time.now",
+                    "description": "Return the current local date and time in a human-readable string.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {},
+                        "required": [],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "web.search",
+                    "description": "Open a web search for the given query in the default browser.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "Search terms to look up on the web.",
+                            }
+                        },
+                        "required": ["query"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "app.open",
+                    "description": "Open a macOS application by name.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "app": {
+                                "type": "string",
+                                "description": "The app name to open, such as Safari or Calculator.",
+                            }
+                        },
+                        "required": ["app"],
+                    },
+                },
+            },
+        ]
+
+    def _ollama_chat(self, messages: list[dict[str, object]]) -> Any:
+        import ollama
+
+        return ollama.chat(
+            model=self.ollama_model,
+            messages=messages,
+            tools=self._ollama_tool_specs(),
+        )
+
+    def _stringify_tool_result(self, result: object) -> str:
+        if isinstance(result, str):
+            return result
+
+        if isinstance(result, (dict, list)):
+            return json.dumps(result, ensure_ascii=False, indent=2, default=str)
+
+        return str(result)
+
+    def _run_model_with_tools(self, user_text: str) -> str:
+        messages: list[dict[str, object]] = [
+            {"role": "system", "content": self._build_system_prompt(user_text)},
+            *self.conversation_history,
+            {"role": "user", "content": user_text},
+        ]
+
+        final_text = ""
+        for _ in range(3):
+            response = self._ollama_chat(messages)
+            message = response["message"]
+            final_text = str(message.get("content") or "").strip()
+            tool_calls = message.get("tool_calls") or []
+
+            if not tool_calls:
+                return final_text
+
+            assistant_message = {
+                "role": message.get("role", "assistant"),
+                "content": message.get("content"),
+                "tool_calls": [
+                    {
+                        "function": {
+                            "name": tool_call["function"]["name"],
+                            "arguments": tool_call["function"]["arguments"],
+                        }
+                    }
+                    for tool_call in tool_calls
+                ],
+            }
+            messages.append(assistant_message)
+
+            for tool_call in tool_calls:
+                tool_name = str(tool_call["function"]["name"])
+                arguments = dict(tool_call["function"].get("arguments") or {})
+                tool_result = self.tool_router.execute(ToolCall(name=tool_name, arguments=arguments))
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_name": tool_name,
+                        "content": self._stringify_tool_result(tool_result),
+                    }
+                )
+
+        return final_text
+
+    def get_current_time(self) -> str:
+        """Return the current local date and time."""
+
+        now = datetime.now().astimezone()
+        return now.strftime("%A, %B %d, %Y %I:%M:%S %p %Z")
+
+    def search_web(self, query: str | None = None, text: str | None = None) -> str:
+        """Open a web search in the default browser."""
+
+        search_query = (query or text or "").strip()
+        if not search_query:
+            raise ValueError("A search query is required.")
+
+        search_url = f"https://duckduckgo.com/?q={quote_plus(search_query)}"
+        webbrowser.open(search_url, new=2)
+        return f"Opened web search for {search_query!r}."
+
+    def open_app(self, app: str | None = None, text: str | None = None) -> str:
+        """Open a macOS application by name."""
+
+        app_name = (app or text or "").strip()
+        if not app_name:
+            raise ValueError("An app name is required.")
+
+        subprocess.run(["open", "-a", app_name], check=True, capture_output=True, text=True)
+        return f"Opened {app_name!r}."
 
     def _remember_utterance(self, user_input: str) -> None:
         item = MemoryItem(
@@ -270,14 +419,4 @@ class SaeliAICore:
 
             return self._finalize_turn(text, self.tool_router.execute(ToolCall(name=tool_name, arguments=arguments)))
 
-        import ollama
-
-        result = ollama.chat(
-            model="llama3.2",
-            messages=[
-                {"role": "system", "content": self._build_system_prompt(text)},
-                *self.conversation_history,
-                {"role": "user", "content": text},
-            ],
-        )
-        return self._finalize_turn(text, result["message"]["content"])
+        return self._finalize_turn(text, self._run_model_with_tools(text))
