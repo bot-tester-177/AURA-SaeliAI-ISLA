@@ -3,6 +3,20 @@
 from __future__ import annotations
 
 import os
+# Disable HuggingFace and tqdm progress bars in-process to avoid tqdm concurrency
+# issues when downloading models from the hub (workaround for macOS envs).
+os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
+os.environ.setdefault("TQDM_DISABLE", "1")
+import logging
+
+# Configure console logging early so external libs (huggingface, faster-whisper)
+# emit messages to stdout/stderr during model download and initialization.
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s:%(name)s: %(message)s",
+)
+logging.getLogger("faster_whisper").setLevel(logging.INFO)
+logging.getLogger("huggingface_hub").setLevel(logging.INFO)
 import sys
 
 from pathlib import Path
