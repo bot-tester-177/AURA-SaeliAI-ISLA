@@ -18,6 +18,7 @@ except Exception:  # pragma: no cover - optional dependency
     yaml = None
 
 from ..memory.memory_store import MemoryItem, MemoryStore
+from ..memory.document_store import DocumentStore
 from ..tools.tool_router import ToolCall, ToolRouter
 from ..avatar.emotion_tagger import tag_emotion
 from ..avatar.vtube_bridge import VTubeBridge
@@ -46,6 +47,7 @@ class SaeliAICore:
         self.manifest_path = manifest_path
         self.manifest = self._load_manifest(manifest_path)
         self.memory_store = memory_store or MemoryStore()
+        self.document_store = DocumentStore()
         self.tool_router = tool_router or ToolRouter()
         self.ollama_model = os.environ.get("ISLA_OLLAMA_MODEL", "mistral").strip() or "mistral"
         self.system_prompt_path = system_prompt_path or Path(__file__).resolve().parents[1] / "prompts" / "system_prompt.md"
@@ -139,6 +141,8 @@ class SaeliAICore:
         self.tool_router.register("identity", self.get_identity)
         self.tool_router.register("memory.get", self.memory_store.get)
         self.tool_router.register("memory.search", self.memory_store.search)
+        self.tool_router.register("file.read", self.document_store.read)
+        self.tool_router.register("file.search", self.document_store.search)
         self.tool_router.register("time.now", self.get_current_time)
         self.tool_router.register("web.search", self.search_web)
         self.tool_router.register("app.open", self.open_app)
@@ -169,6 +173,49 @@ class SaeliAICore:
                                 "type": "string",
                                 "description": "Search terms to look up on the web.",
                             }
+                        },
+                        "required": ["query"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "file.read",
+                    "description": "Read a local file or directory and index supported documents in Isla's local document store.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "path": {
+                                "type": "string",
+                                "description": "Absolute or workspace-relative path to a file or directory.",
+                            }
+                        },
+                        "required": ["path"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "file.search",
+                    "description": "Search the local document index for passages relevant to the given query.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "The question or topic to search for in indexed documents.",
+                            },
+                            "path": {
+                                "type": "string",
+                                "description": "Optional file or directory path to restrict the search.",
+                            },
+                            "limit": {
+                                "type": "integer",
+                                "description": "Maximum number of passages to return.",
+                                "default": 5,
+                            },
                         },
                         "required": ["query"],
                     },
@@ -344,9 +391,32 @@ class SaeliAICore:
 
         return "\n\n".join(sections)
 
+    def _format_document_context(self, query: str | None = None) -> str:
+        if not query:
+            return "No local document query was provided."
+
+        matches = self.document_store.search(query, limit=6)
+        if not matches:
+            return "No local documents matched this question yet."
+
+        lines = []
+        for match in matches:
+            source_path = str(match.get("source_path", ""))
+            chunk_index = int(match.get("chunk_index", 0)) + 1
+            total_chunks = int(match.get("total_chunks", 0))
+            text = str(match.get("text", "")).strip()
+            snippet = text[:500].rstrip()
+            if len(text) > 500:
+                snippet += "..."
+
+            lines.append(f"- {source_path} [{chunk_index}/{total_chunks}]: {snippet}")
+
+        return "Relevant local document passages:\n" + "\n".join(lines)
+
     def _build_system_prompt(self, user_input: str | None = None) -> str:
         parts = [self._load_system_prompt(), self._format_manifest_context()]
         parts.append(f"Relevant memory context from prior sessions:\n{self._format_memory_context(user_input)}")
+        parts.append(f"Relevant local document context:\n{self._format_document_context(user_input)}")
         return "\n\n".join(part for part in parts if part.strip())
 
     def _finalize_turn(self, user_text: str, response: Any) -> Any:

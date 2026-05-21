@@ -6,6 +6,8 @@ import os
 import shutil
 import subprocess
 import importlib
+import tempfile
+import wave
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
@@ -187,8 +189,7 @@ class VoiceLoop:
             "No usable TTS backend was found. Install a local TTS engine or configure one via ISLA_VOICE_TTS_COMMAND."
         )
 
-    def run_once(self, responder: Callable[[str], str] | None = None) -> str:
-        user_text = self.listen()
+    def respond(self, user_text: str, responder: Callable[[str], str] | None = None) -> str:
         if not user_text:
             return ""
 
@@ -198,3 +199,10 @@ class VoiceLoop:
 
         self.speak(response)
         return response
+
+    def run_once(self, responder: Callable[[str], str] | None = None) -> str:
+        user_text = self.listen()
+        if not user_text:
+            return ""
+
+        return self.respond(user_text, responder)

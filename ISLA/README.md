@@ -35,6 +35,15 @@ The current loop is mic-in, voice-out by default:
 - STT: Whisper (`ISLA_USE_MIC=true` by default)
 - TTS: local XTTS-compatible CLI if available, otherwise macOS `say`
 
+The always-on wake-word daemon is the default launch mode. It uses faster-whisper to listen for "Isla", then hands the captured request to Isla's normal response pipeline. If you want the old interactive loop instead, set `ISLA_INTERACTIVE_LOOP=true` before launching. If you also want the avatar window, leave `ISLA_ENABLE_AVATAR=true`.
+
+Useful wake-word tuning flags:
+
+- `ISLA_WAKE_WORD_MODEL` defaults to `base`
+- `ISLA_WAKE_WORD_PATTERN` defaults to `\b(?:hey\s+)?isla\b`
+- `ISLA_WAKE_WORD_CHUNK_SECONDS` defaults to `1.5`
+- `ISLA_WAKE_WORD_QUESTION_SECONDS` defaults to `7.0`
+
 If you want a keyboard fallback instead of microphone-only behavior, set:
 
 - `ISLA_ALLOW_KEYBOARD_FALLBACK=true`
@@ -44,6 +53,8 @@ If microphone STT is enabled, install local dependencies such as `openai-whisper
 Isla defaults to the Ollama `mistral` model. Pull it once with `ollama pull mistral` or override it with `ISLA_OLLAMA_MODEL` if you want to experiment.
 
 The memory layer now persists structured facts in SQLite and indexes semantic recall in ChromaDB when the package is installed. If ChromaDB is unavailable, Isla falls back to SQLite-backed keyword recall so the app still runs locally.
+
+Local document memory is separate from session memory. Use `file.read` to ingest a file or folder into the local document index, then ask follow-up questions that reuse `file.search`-style retrieval through the normal assistant loop. When ChromaDB is available, Isla uses it for the vector index; otherwise the same chunks are searched through a local sqlite-backed embedding index. PDF support requires `pypdf`.
 
 Default memory files live under `/.isla_memory/` in the repository root. Set `ISLA_MEMORY_ROOT` to move the store, or keep `ISLA_MEMORY_PATH` for a legacy-style override.
 
