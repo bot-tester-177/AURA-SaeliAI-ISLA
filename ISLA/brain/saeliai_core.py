@@ -35,11 +35,15 @@ class SaeliAICore:
         manifest_path: Path,
         memory_store: MemoryStore | None = None,
         tool_router: ToolRouter | None = None,
+        system_prompt_path: Path | None = None,
     ) -> None:
         self.manifest_path = manifest_path
         self.manifest = self._load_manifest(manifest_path)
         self.memory_store = memory_store or MemoryStore()
         self.tool_router = tool_router or ToolRouter()
+        self.system_prompt_path = system_prompt_path or Path(__file__).resolve().parents[1] / "prompts" / "system_prompt.md"
+        self.conversation_history: list[dict[str, str]] = []
+        self.max_history_messages = 24
         self._register_default_tools()
 
     def _load_manifest(self, manifest_path: Path) -> IslaManifest:
@@ -136,6 +140,53 @@ class SaeliAICore:
         )
         self.memory_store.save(item)
 
+    def _append_history(self, role: str, content: str) -> None:
+        self.conversation_history.append({"role": role, "content": content})
+        if len(self.conversation_history) > self.max_history_messages:
+            self.conversation_history = self.conversation_history[-self.max_history_messages :]
+
+    def _record_turn(self, user_text: str, assistant_text: str) -> None:
+        self._append_history("user", user_text)
+        self._append_history("assistant", assistant_text)
+
+    def _load_system_prompt(self) -> str:
+        try:
+            return self.system_prompt_path.read_text(encoding="utf-8").strip()
+        except FileNotFoundError:
+            return ""
+
+    def _format_manifest_context(self) -> str:
+        values = "\n".join(f"- {value}" for value in self.manifest.values) or "- (none)"
+        return (
+            f"Identity manifest:\n"
+            f"- name: {self.manifest.name}\n"
+            f"- core_purpose: {self.manifest.core_purpose}\n"
+            f"- values:\n{values}\n"
+            f"- emotional_range: {self.manifest.emotional_range}\n"
+            f"- limits: {self.manifest.limits}\n"
+            f"- memory_rules: {self.manifest.memory_rules}"
+        )
+
+    def _format_memory_context(self) -> str:
+        recent_items = self.memory_store.recent(limit=8)
+        if not recent_items:
+            return "No stored memories available yet."
+
+        return "\n".join(
+            f"- [{item.layer}] {item.key}: {item.value}"
+            for item in recent_items
+        )
+
+    def _build_system_prompt(self) -> str:
+        parts = [self._load_system_prompt(), self._format_manifest_context()]
+        parts.append(f"Relevant memory context from prior sessions:\n{self._format_memory_context()}")
+        return "\n\n".join(part for part in parts if part.strip())
+
+    def _finalize_turn(self, user_text: str, response: Any) -> Any:
+        self._remember_utterance(user_text)
+        self._record_turn(user_text, response if isinstance(response, str) else str(response))
+        return response
+
     def get_identity(self) -> IslaManifest:
         return self.manifest
 
@@ -145,7 +196,6 @@ class SaeliAICore:
             return "I did not catch that."
 
         lowered = text.lower()
-        self._remember_utterance(text)
 
         if lowered.startswith("remember "):
             payload = text[len("remember "):].strip()
@@ -158,26 +208,26 @@ class SaeliAICore:
 
             item = MemoryItem(key=key.strip(), value=value.strip(), layer="long_term")
             self.memory_store.save(item)
-            return f"I remembered {item.key}."
+            return self._finalize_turn(text, f"I remembered {item.key}.")
 
         if lowered.startswith("recall "):
             key = text[len("recall "):].strip()
             memory_item = self.memory_store.get(key)
             if memory_item is None:
-                return f"I do not have a memory for {key}."
-            return memory_item.value
+                return self._finalize_turn(text, f"I do not have a memory for {key}.")
+            return self._finalize_turn(text, memory_item.value)
 
         if lowered.startswith("search "):
             query = text[len("search "):].strip()
             matches = self.memory_store.search(query)
             if not matches:
-                return f"I found no memories for {query}."
-            return "\n".join(f"{item.key}: {item.value}" for item in matches)
+                return self._finalize_turn(text, f"I found no memories for {query}.")
+            return self._finalize_turn(text, "\n".join(f"{item.key}: {item.value}" for item in matches))
 
         if lowered.startswith("tool "):
             payload = text[len("tool "):].strip()
             if not payload:
-                return "Specify a tool name."
+                return self._finalize_turn(text, "Specify a tool name.")
 
             tool_name, _, raw_arguments = payload.partition(" ")
             arguments: dict[str, object]
@@ -195,15 +245,16 @@ class SaeliAICore:
             else:
                 arguments = {}
 
-            return self.tool_router.execute(ToolCall(name=tool_name, arguments=arguments))
+            return self._finalize_turn(text, self.tool_router.execute(ToolCall(name=tool_name, arguments=arguments)))
 
         import ollama
 
         result = ollama.chat(
             model="llama3.2",
             messages=[
-                {"role": "system", "content": self.manifest.core_purpose},
+                {"role": "system", "content": self._build_system_prompt()},
+                *self.conversation_history,
                 {"role": "user", "content": text},
             ],
         )
-        return result["message"]["content"]
+        return self._finalize_turn(text, result["message"]["content"])

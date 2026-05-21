@@ -28,7 +28,18 @@ The voice loop now reads local asset locations from environment variables and fa
 
 ## Running Locally
 
-Start the package with `python -m ISLA` from the repository root. The current loop is text-in, voice-out by default, and it will use your local voice reference files when a compatible TTS backend is available.
+Start the package with `python -m ISLA` from the repository root.
+
+The current loop is mic-in, voice-out by default:
+
+- STT: Whisper (`ISLA_USE_MIC=true` by default)
+- TTS: local XTTS-compatible CLI if available, otherwise macOS `say`
+
+If you want a keyboard fallback instead of microphone-only behavior, set:
+
+- `ISLA_ALLOW_KEYBOARD_FALLBACK=true`
+
+If microphone STT is enabled, install local dependencies such as `openai-whisper`, `sounddevice`, and `soundfile` in your Python environment.
 
 ## Moving To Another Desktop
 

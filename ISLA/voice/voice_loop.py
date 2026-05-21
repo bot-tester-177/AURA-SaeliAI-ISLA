@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import importlib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
@@ -25,12 +26,76 @@ class VoiceLoop:
     )
     voice_input_prompt: str = field(default_factory=lambda: os.getenv("ISLA_VOICE_INPUT_PROMPT", "You: "))
     tts_output_dir: Path = field(default_factory=lambda: Path.cwd() / ".isla_voice_cache")
+    use_mic: bool = field(default_factory=lambda: os.getenv("ISLA_USE_MIC", "true").lower() in {"1", "true", "yes"})
+    whisper_model_name: str = field(default_factory=lambda: os.getenv("ISLA_WHISPER_MODEL", "small"))
+    allow_keyboard_fallback: bool = field(
+        default_factory=lambda: os.getenv("ISLA_ALLOW_KEYBOARD_FALLBACK", "false").lower()
+        in {"1", "true", "yes"}
+    )
 
     def listen(self) -> str:
+        if self.use_mic:
+            try:
+                return self._record_and_transcribe()
+            except Exception as exc:
+                if not self.allow_keyboard_fallback:
+                    raise RuntimeError(
+                        "Microphone STT failed. Install whisper + audio dependencies or set "
+                        "ISLA_ALLOW_KEYBOARD_FALLBACK=true."
+                    ) from exc
+
+        if self.allow_keyboard_fallback:
+            try:
+                return input(self.voice_input_prompt).strip()
+            except EOFError:
+                return ""
+
+        return ""
+
+    def _record_and_transcribe(self) -> str:
+        """Record from the default microphone and transcribe using Whisper.
+
+        This attempts to import `sounddevice`, `soundfile`, and `whisper`.
+        If any step fails, an exception is raised and the caller will fall
+        back to keyboard input.
+        """
+        import tempfile
+
+        sd = importlib.import_module("sounddevice")
+        sf = importlib.import_module("soundfile")
+
+        # Parameters from environment (duration in seconds)
+        duration = float(os.getenv("ISLA_MIC_DURATION", "5.0"))
+        sample_rate = int(os.getenv("ISLA_MIC_SAMPLE_RATE", "16000"))
+
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+            tmp_path = tmp.name
+
+        # Record audio
+        frames = int(duration * sample_rate)
+        recording = sd.rec(frames, samplerate=sample_rate, channels=1, dtype="int16")
+        sd.wait()
+
+        # Write WAV
+        sf.write(tmp_path, recording, sample_rate)
+
+        # Transcribe with whisper
+        whisper = importlib.import_module("whisper")
+
+        model = whisper.load_model(self.whisper_model_name)
+        result = model.transcribe(tmp_path)
         try:
-            return input(self.voice_input_prompt).strip()
-        except EOFError:
-            return ""
+            text = result.get("text", "").strip()
+        except Exception:
+            text = ""
+
+        # Clean up the temp file
+        try:
+            Path(tmp_path).unlink(missing_ok=True)
+        except Exception:
+            pass
+
+        return text
 
     def speak(self, text: str) -> None:
         reference_wav = self.assets.preferred_reference_wav()

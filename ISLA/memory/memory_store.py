@@ -6,6 +6,16 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+import os
+
+
+def _default_store_path() -> Path:
+    env_path = os.getenv("ISLA_MEMORY_PATH", "").strip()
+    if env_path:
+        return Path(env_path).expanduser().resolve()
+
+    # Keep memory in a stable repo-root location across runs.
+    return Path(__file__).resolve().parents[2] / ".isla_memory.jsonl"
 
 
 @dataclass(slots=True)
@@ -21,7 +31,13 @@ class MemoryItem:
 class MemoryStore:
     """Stores structured facts and prepares the path to longer-term retrieval."""
 
-    store_path: Path = field(default_factory=lambda: Path.cwd() / ".isla_memory.jsonl")
+    store_path: Path = field(default_factory=_default_store_path)
+
+    def recent(self, limit: int = 8) -> list[MemoryItem]:
+        if limit <= 0:
+            return []
+
+        return sorted(self._load_items(), key=lambda item: item.created_at, reverse=True)[:limit]
 
     def _load_items(self) -> list[MemoryItem]:
         if not self.store_path.exists():

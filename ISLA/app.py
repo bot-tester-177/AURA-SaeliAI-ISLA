@@ -27,7 +27,7 @@ class IslaApp:
     def run_once(self) -> str:
         return self.voice_loop.run_once(self.core.route_input)
 
-    def run_forever(self) -> None:
+    def run_loop(self) -> None:
         while True:
             user_text = self.voice_loop.listen()
             if not user_text:
@@ -40,3 +40,6 @@ class IslaApp:
 
             response = self.core.route_input(user_text)
             self.voice_loop.speak(str(response))
+
+    def run_forever(self) -> None:
+        self.run_loop()
