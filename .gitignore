@@ -1,0 +1,7 @@
+.env
+.isla_memory.jsonl
+.isla_voice_cache/
+.venv/
+*.pdf
+__pycache__/
+*.pyc
