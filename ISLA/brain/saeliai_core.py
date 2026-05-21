@@ -167,19 +167,34 @@ class SaeliAICore:
             f"- memory_rules: {self.manifest.memory_rules}"
         )
 
-    def _format_memory_context(self) -> str:
+    def _format_memory_context(self, query: str | None = None) -> str:
         recent_items = self.memory_store.recent(limit=8)
-        if not recent_items:
+        relevant_items = self.memory_store.search(query, limit=8) if query else []
+
+        def format_items(items: list[MemoryItem]) -> str:
+            if not items:
+                return "- (none)"
+
+            return "\n".join(
+                f"- [{item.layer}] {item.key}: {item.value}"
+                for item in items
+            )
+
+        sections: list[str] = []
+        if relevant_items:
+            sections.append(f"Semantic recall:\n{format_items(relevant_items)}")
+
+        if recent_items:
+            sections.append(f"Recent memory:\n{format_items(recent_items)}")
+
+        if not sections:
             return "No stored memories available yet."
 
-        return "\n".join(
-            f"- [{item.layer}] {item.key}: {item.value}"
-            for item in recent_items
-        )
+        return "\n\n".join(sections)
 
-    def _build_system_prompt(self) -> str:
+    def _build_system_prompt(self, user_input: str | None = None) -> str:
         parts = [self._load_system_prompt(), self._format_manifest_context()]
-        parts.append(f"Relevant memory context from prior sessions:\n{self._format_memory_context()}")
+        parts.append(f"Relevant memory context from prior sessions:\n{self._format_memory_context(user_input)}")
         return "\n\n".join(part for part in parts if part.strip())
 
     def _finalize_turn(self, user_text: str, response: Any) -> Any:
@@ -199,6 +214,14 @@ class SaeliAICore:
 
         if lowered.startswith("remember "):
             payload = text[len("remember "):].strip()
+            layer = "long_term"
+
+            for prefix, candidate_layer in (("fact ", "structured_fact"), ("preference ", "preference"), ("memory ", "long_term"), ("note ", "long_term")):
+                if payload.lower().startswith(prefix):
+                    payload = payload[len(prefix):].strip()
+                    layer = candidate_layer
+                    break
+
             if "=" in payload:
                 key, value = payload.split("=", 1)
             elif ":" in payload:
@@ -206,7 +229,7 @@ class SaeliAICore:
             else:
                 key, value = "note", payload
 
-            item = MemoryItem(key=key.strip(), value=value.strip(), layer="long_term")
+            item = MemoryItem(key=key.strip(), value=value.strip(), layer=layer)
             self.memory_store.save(item)
             return self._finalize_turn(text, f"I remembered {item.key}.")
 
@@ -252,7 +275,7 @@ class SaeliAICore:
         result = ollama.chat(
             model="llama3.2",
             messages=[
-                {"role": "system", "content": self._build_system_prompt()},
+                {"role": "system", "content": self._build_system_prompt(text)},
                 *self.conversation_history,
                 {"role": "user", "content": text},
             ],

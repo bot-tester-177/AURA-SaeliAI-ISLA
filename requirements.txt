@@ -1,0 +1,5 @@
+# chromadb requires onnxruntime which has no Python 3.13 wheel yet.
+# Install manually in a Python 3.10 env: pip install chromadb
+# chromadb>=0.5.0
+ollama
+pyyaml

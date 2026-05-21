@@ -41,6 +41,10 @@ If you want a keyboard fallback instead of microphone-only behavior, set:
 
 If microphone STT is enabled, install local dependencies such as `openai-whisper`, `sounddevice`, and `soundfile` in your Python environment.
 
+The memory layer now persists structured facts in SQLite and indexes semantic recall in ChromaDB when the package is installed. If ChromaDB is unavailable, Isla falls back to SQLite-backed keyword recall so the app still runs locally.
+
+Default memory files live under `/.isla_memory/` in the repository root. Set `ISLA_MEMORY_ROOT` to move the store, or keep `ISLA_MEMORY_PATH` for a legacy-style override.
+
 ## Moving To Another Desktop
 
 1. Copy the repository folder to the other machine.

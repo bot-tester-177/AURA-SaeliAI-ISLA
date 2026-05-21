@@ -1,4 +1,5 @@
 .env
+.isla_memory/
 .isla_memory.jsonl
 .isla_voice_cache/
 .venv/
