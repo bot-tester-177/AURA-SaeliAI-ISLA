@@ -24,6 +24,7 @@ class VoiceLoop:
             "ISLA_VOICE_TTS_MODEL_NAME", "tts_models/multilingual/multi-dataset/xtts_v2"
         )
     )
+    tts_language: str = field(default_factory=lambda: os.getenv("ISLA_VOICE_TTS_LANGUAGE", "en"))
     voice_input_prompt: str = field(default_factory=lambda: os.getenv("ISLA_VOICE_INPUT_PROMPT", "You: "))
     tts_output_dir: Path = field(default_factory=lambda: Path.cwd() / ".isla_voice_cache")
     use_mic: bool = field(default_factory=lambda: os.getenv("ISLA_USE_MIC", "true").lower() in {"1", "true", "yes"})
@@ -59,7 +60,15 @@ class VoiceLoop:
         If any step fails, an exception is raised and the caller will fall
         back to keyboard input.
         """
+        import sys
         import tempfile
+        import wave
+
+        # Ensure waifu-env packages (sounddevice, soundfile, whisper) are importable
+        # when running from the project venv (Python 3.13).
+        waifu_site = str(self.assets.waifu_env_dir / "lib" / "python3.10" / "site-packages")
+        if waifu_site not in sys.path:
+            sys.path.insert(0, waifu_site)
 
         sd = importlib.import_module("sounddevice")
         sf = importlib.import_module("soundfile")
@@ -98,8 +107,46 @@ class VoiceLoop:
         return text
 
     def speak(self, text: str) -> None:
-        reference_wav = self.assets.preferred_reference_wav()
+        reference_wavs = self.assets.reference_wavs()
         tts_executable = shutil.which(self.tts_command)
+        # If multiple reference WAVs are available, concatenate them into
+        # a single temporary file so the TTS CLI can use them as a combined
+        # speaker reference sample for zero-shot cloning.
+        temp_ref_path = None
+        reference_wav = None
+        if reference_wavs:
+            if len(reference_wavs) == 1:
+                reference_wav = reference_wavs[0]
+            else:
+                try:
+                    tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+                    tmp_path = tmp.name
+                    tmp.close()
+
+                    # Use wave to concatenate files with matching params.
+                    with wave.open(tmp_path, "wb") as out_wav:
+                        first_params = None
+                        for idx, src in enumerate(reference_wavs):
+                            try:
+                                with wave.open(str(src), "rb") as in_wav:
+                                    if first_params is None:
+                                        first_params = in_wav.getparams()
+                                        out_wav.setparams(first_params)
+                                    else:
+                                        # Only append files that match params.
+                                        if in_wav.getparams() != first_params:
+                                            continue
+
+                                    frames = in_wav.readframes(in_wav.getnframes())
+                                    out_wav.writeframes(frames)
+                            except Exception:
+                                # Skip files that can't be read or have incompatible formats
+                                continue
+                        temp_ref_path = Path(tmp_path)
+                        reference_wav = temp_ref_path
+                except Exception:
+                    # Fall back to single-file reference selection
+                    reference_wav = reference_wavs[0]
 
         if reference_wav is not None and tts_executable is not None:
             self.tts_output_dir.mkdir(parents=True, exist_ok=True)
@@ -113,6 +160,8 @@ class VoiceLoop:
                 self.tts_model_name,
                 "--speaker_wav",
                 str(reference_wav),
+                "--language_idx",
+                self.tts_language,
                 "--out_path",
                 str(output_path),
             ]
@@ -121,6 +170,12 @@ class VoiceLoop:
 
             if shutil.which("afplay") is not None:
                 subprocess.run(["afplay", str(output_path)], check=True)
+            # Clean up temporary concatenated reference wav if we created one.
+            if temp_ref_path is not None:
+                try:
+                    temp_ref_path.unlink(missing_ok=True)
+                except Exception:
+                    pass
             return
 
         say_executable = shutil.which("say")

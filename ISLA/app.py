@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -9,6 +10,27 @@ from .brain.saeliai_core import SaeliAICore
 from .memory.memory_store import MemoryStore
 from .tools.tool_router import ToolRouter
 from .voice.voice_loop import VoiceLoop
+
+
+def _load_dotenv_file(dotenv_path: Path) -> None:
+    """Load simple KEY=VALUE pairs from a local .env file if present."""
+
+    if not dotenv_path.exists():
+        return
+
+    for raw_line in dotenv_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+_load_dotenv_file(Path(__file__).resolve().parents[1] / ".env")
 
 
 @dataclass(slots=True)

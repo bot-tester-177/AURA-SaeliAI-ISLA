@@ -7,10 +7,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_VOICE_PROJECT_DIR = WORKSPACE_ROOT / "local_voice"
+# Default to the user's waifu_voice project directory (absolute path requested)
+DEFAULT_VOICE_PROJECT_DIR = Path("/Users/jessiejavanbrown/Desktop/waifu_voice")
 DEFAULT_VOICE_MODEL_DIR = DEFAULT_VOICE_PROJECT_DIR / "my_waifu_model"
 DEFAULT_VOICE_DATASET_DIR = DEFAULT_VOICE_PROJECT_DIR / "dataset"
 DEFAULT_WAIFU_ENV_DIR = WORKSPACE_ROOT / ".venv"
+# Use the `wavs` subdirectory in the waifu_voice project by default
 DEFAULT_WAV_DIR = DEFAULT_VOICE_PROJECT_DIR / "wavs"
 
 
