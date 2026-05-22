@@ -23,6 +23,7 @@ dataset_config = BaseDatasetConfig(
 config = Tacotron2Config(
     audio=BaseAudioConfig(sample_rate=22050),
     run_name="waifu_tacotron2",
+    num_chars=148,
     batch_size=4,
     eval_batch_size=2,
     num_loader_workers=0,
