@@ -1,0 +1,6 @@
+/Users/jessiejavanbrown/Documents/GitHub/AURA-SaeliAI-ISLA/ISLA/voice/waifu_voice/waifu-env/lib/python3.10/site-packages/librosa/core/intervals.py:8: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import resource_filename
+Traceback (most recent call last):
+  File "/Users/jessiejavanbrown/Documents/GitHub/AURA-SaeliAI-ISLA/ISLA/voice/waifu_voice/train_waifu.py", line 5, in <module>
+    from TTS.tts.datasets.preprocess import preprocess_dataset
+ModuleNotFoundError: No module named 'TTS.tts.datasets.preprocess'

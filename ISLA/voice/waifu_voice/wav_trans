@@ -1,0 +1,17 @@
+import whisper
+import os
+
+model = whisper.load_model("base")  # or "small" for faster but less accurate
+
+folder = "waifu_voice"
+files = sorted([f for f in os.listdir(folder) if f.endswith('.wav')])
+
+with open(os.path.join(folder, "metadata.txt"), "w") as meta_file:
+    for filename in files:
+        print(f"Transcribing: {filename} 🎧")
+        result = model.transcribe(os.path.join(folder, filename))
+        text = result['text'].strip()
+        print(f"Transcribed text: {text}")
+        meta_file.write(f"{filename}|{text}\n")
+
+print("\nAll done, babe! Your metadata file has all the transcriptions~ 💕")

@@ -1,0 +1,103 @@
+{
+    "model": "tacotron2",
+    "run_name": "waifu_tacotron2",
+    "run_description": "Tacotron2 training for waifu voice",
+    
+    "audio": {
+        "fft_size": 1024,
+        "hop_length": 256,
+        "win_length": 1024,
+        "sample_rate": 22050,
+        "preemphasis": 0.97,
+        "ref_level_db": 20,
+        "do_sound_norm": false,
+        "log_func": "np.log10",
+        "do_trim_silence": true,
+        "trim_db": 45,
+        "power": 1.5,
+        "griffin_lim_iters": 60
+    },
+
+    "datasets": [
+        {
+            "formatter": "ljspeech",
+            "meta_file_train": "metadata_ljspeech.csv",
+            "path": "waifu_voice"
+        }
+    ],
+
+    "text": {
+        "text_cleaner": "phoneme_cleaners",
+        "language": "en-us",
+        "phoneme_backend": "espeak",
+        "phoneme_language": "en-us",
+        "add_blank": true,
+        "use_phonemes": true
+    },
+
+    "model_args": {
+        "num_chars": 148,
+        "num_speakers": 1,
+        "r": 2,
+        "gradual_training": [[0, 1, 32], [10000, 1, 32], [50000, 1, 32]],
+        "memory_size": -1,
+        "prenet_type": "original",
+        "prenet_dropout": true,
+        "prenet_dropout_at_inference": false,
+        "stopnet": true,
+        "separate_stopnet": true,
+        "print_step": 25,
+        "print_eval": false,
+        "mixed_precision": false,
+        
+        "max_decoder_steps": 500,
+        "encoder_in_features": 512,
+        "decoder_in_features": 512,
+        "decoder_output_dim": 80,
+        "out_channels": 80,
+        "memory_size": -1
+    },
+
+    "optimizer": "RAdam",
+    "optimizer_params": {
+        "betas": [0.9, 0.998],
+        "weight_decay": 1e-6
+    },
+    "lr_scheduler": "NoamLR",
+    "lr_scheduler_params": {
+        "warmup_steps": 4000
+    },
+    "lr": 1e-3,
+
+    "train_split": 0.85,
+    "eval_split": 0.15,
+    "test_split": 0.0,
+    "eval_split_size": 0.02,
+
+    "batch_size": 32,
+    "eval_batch_size": 16,
+    "num_loader_workers": 4,
+    "num_eval_loader_workers": 4,
+
+    "run_eval": true,
+    "test_delay_epochs": -1,
+    "epochs": 1000,
+    "save_step": 1000,
+    "checkpoint": true,
+    "keep_all_best": false,
+    "keep_after": 10000,
+    "num_keep_checkpoints": 3,
+
+    "loss_masking": true,
+    "decoder_loss_alpha": 0.25,
+    "postnet_loss_alpha": 0.25,
+    "postnet_diff_spec_alpha": 0.25,
+    "decoder_diff_spec_alpha": 0.25,
+    "decoder_ssim_alpha": 0.25,
+    "postnet_ssim_alpha": 0.25,
+    "ga_alpha": 5.0,
+
+    "output_path": "./my_waifu_model",
+    "distributed_backend": "nccl",
+    "distributed_url": "tcp://localhost:54321"
+}
