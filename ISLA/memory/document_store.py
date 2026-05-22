@@ -9,7 +9,7 @@ import os
 import sqlite3
 import re
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, UTC
 from pathlib import Path
 from typing import Any
 
@@ -206,7 +206,7 @@ class DocumentStore:
         if not chunks:
             return []
 
-        indexed_at = datetime.utcnow().isoformat()
+        indexed_at = datetime.now(UTC).isoformat()
         source_mtime = datetime.fromtimestamp(path.stat().st_mtime).isoformat()
         content_hash = self._content_hash(text)
         return [

@@ -26,6 +26,29 @@ The voice loop now reads local asset locations from environment variables and fa
 
 `ISLA/voice/voice_loop.py` will use the first `.wav` file it finds in those locations as the speaker reference for a local TTS backend such as Coqui TTS with XTTS-compatible speaker cloning.
 
+### Voice Model Setup & Tuning
+
+For speaker-cloned TTS with XTTS v2:
+
+1. **Prepare speaker reference samples** (3-5 seconds of clean audio):
+   - Record 2-3 `.wav` files (22 kHz, mono) of Isla's target voice
+   - Place them in `ISLA/local_voice/wavs/`
+
+2. **Train or initialize the cloning model**:
+   - If using Coqui TTS with XTTS v2: `pip install coqui-tts`
+   - Run `voice_loop.py test` to verify voice asset discovery
+   - Model will auto-download on first use (~2GB)
+
+3. **Test speaker cloning**:
+   - Run `python ISLA/voice/test_tts.py "Hello world"` to test TTS output
+   - Verify output matches the reference speaker characteristics
+   - Adjust `ISLA_VOICE_*` paths if files aren't being discovered
+
+4. **Personality tuning via prompts**:
+   - Voice tone is shaped primarily by the system prompt in `ISLA/prompts/system_prompt.md`
+   - Few-shot examples in the prompt improve consistency
+   - Test with `python -m ISLA` and adjust system prompt as needed
+
 ## Running Locally
 
 Start the package with `python -m ISLA` from the repository root.
@@ -51,6 +74,28 @@ If you want a keyboard fallback instead of microphone-only behavior, set:
 If microphone STT is enabled, install local dependencies such as `openai-whisper`, `sounddevice`, and `soundfile` in your Python environment.
 
 Isla defaults to the Ollama `mistral` model. Pull it once with `ollama pull mistral` or override it with `ISLA_OLLAMA_MODEL` if you want to experiment.
+
+### Avatar and Visual Presence
+
+Enable Isla's avatar window with:
+
+```bash
+ISLA_ENABLE_AVATAR=true python -m ISLA
+```
+
+The avatar responds to emotion tags in Isla's responses:
+- **neutral**: Default listening/waiting state
+- **happy**: Positive or humorous responses
+- **sad**: Empathetic or supportive responses  
+- **surprised**: Novel information or unexpected turns
+- **thinking**: Processing or deliberating
+
+Emotion tagging happens automatically via `emotion_tagger.py`. Sprite images are located in `ISLA/avatar/sprites/`.
+
+For custom avatars:
+- Replace `.png` files in `ISLA/avatar/sprites/` with your own emotion states
+- Emotion tags are extracted from response text by `emotion_tagger.py`
+- Avatar window is optional; full app runs without it
 
 The memory layer now persists structured facts in SQLite and indexes semantic recall in ChromaDB when the package is installed. If ChromaDB is unavailable, Isla falls back to SQLite-backed keyword recall so the app still runs locally.
 

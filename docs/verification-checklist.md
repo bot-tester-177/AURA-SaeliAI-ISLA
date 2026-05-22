@@ -104,3 +104,68 @@ Run:
 2. If that fails, run the matching component file from the phase list above.
 3. If the failure is import or syntax related, run `python -m compileall ISLA`.
 4. If the failure is voice hardware related, use the optional TTS smoke test separately.
+
+## Code Quality Checks
+
+### Python Version Compatibility
+
+Verify no deprecated APIs are in use:
+
+```bash
+# Check for Python 3.13 deprecated datetime.utcnow() calls
+grep -r "utcnow" ISLA/
+```
+
+Expected: No matches (all should be replaced with `datetime.now(UTC)`)
+
+### Type Checking (Optional)
+
+If using `pyright` or `mypy`:
+
+```bash
+# Check code without running
+pyright ISLA/
+```
+
+## Runtime Integration Tests
+
+### Voice I/O End-to-End (requires audio hardware)
+
+```bash
+# Test STT + LLM + TTS pipeline
+ISLA_INTERACTIVE_LOOP=true python -m ISLA
+```
+
+Expected: Speak into mic, hear response back
+
+### Avatar Rendering (requires display)
+
+```bash
+# Test emotion tagging + sprite rendering
+ISLA_ENABLE_AVATAR=true python -m ISLA
+```
+
+Expected: Avatar window appears, changes emotion based on responses
+
+### Memory Persistence
+
+```bash
+# Test that facts persist across sessions
+python -m ISLA
+# Input: "Remember that my favorite color is blue"
+# Exit: Ctrl+C
+# Restart
+python -m ISLA
+# Input: "What's my favorite color?"
+```
+
+Expected: Isla recalls "blue"
+
+## Post-Change Validation
+
+After any code change:
+
+1. ✅ Syntax check: `python -m compileall ISLA tests`
+2. ✅ Unit tests: `python -m unittest discover -s tests -p "test_*.py"`
+3. ✅ Runtime test: `python -m ISLA` (interactive, manual testing)
+4. ✅ Documentation update: If new features, update ISLA/README.md

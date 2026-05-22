@@ -109,6 +109,9 @@ class VoiceLoop:
         return text
 
     def speak(self, text: str) -> None:
+        if os.getenv("ISLA_SKIP_TTS", "false").lower() in {"1", "true", "yes"}:
+            print(f"Isla: {text}")
+            return
         reference_wavs = self.assets.reference_wavs()
         tts_executable = shutil.which(self.tts_command)
         # If multiple reference WAVs are available, concatenate them into

@@ -10,7 +10,7 @@ import re
 import sqlite3
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, UTC
 from pathlib import Path
 from typing import Any
 
@@ -74,7 +74,7 @@ class MemoryItem:
     key: str
     value: str
     layer: str
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     flagged: bool = False
 
 
@@ -284,7 +284,7 @@ class MemoryStore:
                 if not value:
                     continue
 
-                created_at_text = str(metadata.get("created_at") or datetime.utcnow().isoformat())
+                created_at_text = str(metadata.get("created_at") or datetime.now(UTC).isoformat())
                 items.append(
                     MemoryItem(
                         key=str(metadata.get("key", "")),

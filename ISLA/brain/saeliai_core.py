@@ -6,7 +6,7 @@ import json
 import os
 import subprocess
 import webbrowser
-from datetime import datetime
+from datetime import datetime, UTC
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import quote_plus
@@ -333,7 +333,7 @@ class SaeliAICore:
 
     def _remember_utterance(self, user_input: str) -> None:
         item = MemoryItem(
-            key=f"utterance-{datetime.utcnow().isoformat(timespec='seconds')}",
+            key=f"utterance-{datetime.now(UTC).isoformat(timespec='seconds')}",
             value=user_input,
             layer="short_term",
         )

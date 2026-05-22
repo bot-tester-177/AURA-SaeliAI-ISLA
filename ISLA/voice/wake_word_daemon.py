@@ -103,7 +103,7 @@ class WakeWordDaemon:
             audio,
             language=self.wake_language,
             beam_size=1,
-            vad_filter=True,
+            vad_filter=False,
             condition_on_previous_text=False,
         )
         return " ".join(segment.text.strip() for segment in segments if segment.text).strip()
