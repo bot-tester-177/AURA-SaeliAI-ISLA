@@ -3,6 +3,7 @@
 .isla_memory.jsonl
 .isla_voice_cache/
 .venv/
+**/waifu-env/
 *.pdf
 __pycache__/
 *.pyc
