@@ -9,6 +9,9 @@ numpy
 ollama
 pyyaml
 
+# Voice synthesis and cloning
+TTS>=0.21.0  # For XTTS v2 zero-shot voice cloning support
+
 # Avatar layer
 websockets==12.0
 Pillow>=10.0.0   # optional — enables PNG sprite rendering in avatar_window
